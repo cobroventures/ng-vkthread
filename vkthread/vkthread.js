@@ -26,9 +26,9 @@
 	      return JSON.stringify(obj, function (key, value) {
 	        var fnBody;
 	      if (value instanceof Function || typeof value === 'function') {
-	
+
 	        fnBody = value.toString();
-	
+
 	        if (fnBody.length < 8 || fnBody.substring(0, 8) !== 'function') { //this is ES6 Arrow Function
 	          return '_NuFrRa_' + fnBody;
 	        }
@@ -49,7 +49,7 @@
      */
     var VkthreadProvider = function(){
 
-        this.$get = function($q){
+        this.$get = ['$q', '$timeout', function($q, $timeout) {
 
             var VkThread = function(){
                 this.version = '2.5.0';
@@ -73,26 +73,58 @@
            */
             VkThread.prototype.exec = function(param){
                 var worker = new Worker(window.URL.createObjectURL(workerBlob)),
-                    dfr = $q.defer();
+                    dfr = $q.defer(),
+                    workerTimer;
 
                 worker.onmessage = function (oEvent) {
                     dfr.resolve(oEvent.data);
-                    worker.terminate();
+                    handleWorkerCompletion(worker, workerTimer);
                 };
 
                 worker.onerror = function(error) {
                     dfr.reject(new Error('Worker error: ' + error.message));
-                    worker.terminate();
+                    handleWorkerCompletion(worker, workerTimer);
                 };
+
+                if (param.maxExecutionDuration && (param.maxExecutionDuration > 0)) {
+                  // If a maximum execution duration was provided, start a timer
+                  workerTimer = $timeout(function(){
+                    // This implies that the function execution has taken more than the specified
+                    // duration. So what we will do is that terminate the worker and return an
+                    // error. This prevents us from cases where the execution takes a long time
+                    // such as a regex leading to a very long execution time.
+                    workerTimer = null;
+                    worker.onerror({ message: ('Maximum execution duration of ' + Math.floor(param.maxExecutionDuration/1000) + 's exceeded')});
+                  }, param.maxExecutionDuration, false);
+                }
 
                 worker.postMessage(JSONfn.stringify(param));
                 return dfr.promise;
             };
 
+            // This function is called when the worker completes (success or failure)
+            function handleWorkerCompletion(worker, workerTimer){
+              // Clear the timer
+              clearTimer(workerTimer);
+              if (worker) {
+                // Terminate the worker
+                worker.terminate();
+              }
+            }
+
+            function clearTimer(workerTimer) {
+              if (workerTimer) {
+                $timeout.cancel(workerTimer);
+              }
+            }
+
           /**
            *   Execute multiple functions, each in a separate threads.
            *
            *    @args  -- array of @param objects (described above);
+           *
+           *    NOTE: We are not using this function and we have not tested
+           *    this function.
            */
             VkThread.prototype.execAll = function(args, cb){
 
@@ -114,7 +146,7 @@
             };
 
          return vkThread;
-      };
+      }];
   };
   angular.module('ng-vkThread', [])
          .provider('vkThread', VkthreadProvider);
