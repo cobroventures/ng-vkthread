@@ -10,6 +10,8 @@
 * @author: Vadim Kiryukhin ( vkiryukhin @ gmail.com )
 *
 * Copyright (c) 2016 Vadim Kiryukhin
+*
+* From Brian, Your request to use ng-vkthread under the MIT license for distribution purposes is approved.
 */
 
 /* jshint maxlen:false */
@@ -77,13 +79,11 @@
                     workerTimer;
 
                 worker.onmessage = function (oEvent) {
-                    dfr.resolve(oEvent.data);
-                    handleWorkerCompletion(worker, workerTimer);
+                    handleWorkerCompletion(worker, workerTimer, dfr, oEvent.data);
                 };
 
                 worker.onerror = function(error) {
-                    dfr.reject(new Error('Worker error: ' + error.message));
-                    handleWorkerCompletion(worker, workerTimer);
+                    handleWorkerCompletion(worker, workerTimer, dfr, param.returnValueToUseUponError);
                 };
 
                 if (param.maxExecutionDuration && (param.maxExecutionDuration > 0)) {
@@ -94,7 +94,7 @@
                     // error. This prevents us from cases where the execution takes a long time
                     // such as a regex leading to a very long execution time.
                     workerTimer = null;
-                    worker.onerror({ message: ('Maximum execution duration of ' + Math.floor(param.maxExecutionDuration/1000) + 's exceeded')});
+                    handleWorkerCompletion(worker, workerTimer, dfr, param.returnValueToUseUponTimeout);
                   }, param.maxExecutionDuration, false);
                 }
 
@@ -103,7 +103,9 @@
             };
 
             // This function is called when the worker completes (success or failure)
-            function handleWorkerCompletion(worker, workerTimer){
+            function handleWorkerCompletion(worker, workerTimer, dfr, data){
+              dfr.resolve(data);
+
               // Clear the timer
               clearTimer(workerTimer);
               if (worker) {
