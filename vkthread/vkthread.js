@@ -79,11 +79,13 @@
                     workerTimer;
 
                 worker.onmessage = function (oEvent) {
-                    handleWorkerCompletion(worker, workerTimer, dfr, oEvent.data);
+                  // Use the data as per the result of the function that was executed
+                  handleWorkerCompletion(worker, workerTimer, dfr, oEvent.data);
                 };
 
                 worker.onerror = function(error) {
-                    handleWorkerCompletion(worker, workerTimer, dfr, param.returnValueToUseUponError);
+                  // Use the value as provided for the error case
+                  handleWorkerCompletion(worker, workerTimer, dfr, param.returnValueToUseUponError);
                 };
 
                 if (param.maxExecutionDuration && (param.maxExecutionDuration > 0)) {
@@ -93,6 +95,7 @@
                     // duration. So what we will do is that terminate the worker and return an
                     // error. This prevents us from cases where the execution takes a long time
                     // such as a regex leading to a very long execution time.
+                    // Use the value as provided for the timeout case
                     workerTimer = null;
                     handleWorkerCompletion(worker, workerTimer, dfr, param.returnValueToUseUponTimeout);
                   }, param.maxExecutionDuration, false);
@@ -103,6 +106,7 @@
             };
 
             // This function is called when the worker completes (success or failure)
+            // For simplicity, we will always resolve the promise
             function handleWorkerCompletion(worker, workerTimer, dfr, data){
               dfr.resolve(data);
 
