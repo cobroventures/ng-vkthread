@@ -10,6 +10,8 @@
 * @author: Vadim Kiryukhin ( vkiryukhin @ gmail.com )
 *
 * Copyright (c) 2016 Vadim Kiryukhin
+*
+* From Brian, Your request to use ng-vkthread under the MIT license for distribution purposes is approved.
 */
 
 /* jshint maxlen:false */
@@ -26,9 +28,9 @@
 	      return JSON.stringify(obj, function (key, value) {
 	        var fnBody;
 	      if (value instanceof Function || typeof value === 'function') {
-	
+
 	        fnBody = value.toString();
-	
+
 	        if (fnBody.length < 8 || fnBody.substring(0, 8) !== 'function') { //this is ES6 Arrow Function
 	          return '_NuFrRa_' + fnBody;
 	        }
@@ -49,7 +51,7 @@
      */
     var VkthreadProvider = function(){
 
-        this.$get = function($q){
+        this.$get = ['$q', '$timeout', function($q, $timeout) {
 
             var VkThread = function(){
                 this.version = '2.5.0';
@@ -73,26 +75,62 @@
            */
             VkThread.prototype.exec = function(param){
                 var worker = new Worker(window.URL.createObjectURL(workerBlob)),
-                    dfr = $q.defer();
+                    dfr = $q.defer(),
+                    workerTimer;
 
                 worker.onmessage = function (oEvent) {
-                    dfr.resolve(oEvent.data);
-                    worker.terminate();
+                  // Use the data as per the result of the function that was executed
+                  handleWorkerCompletion(worker, workerTimer, dfr, oEvent.data);
                 };
 
                 worker.onerror = function(error) {
-                    dfr.reject(new Error('Worker error: ' + error.message));
-                    worker.terminate();
+                  // Use the value as provided for the error case
+                  handleWorkerCompletion(worker, workerTimer, dfr, param.returnValueToUseUponError);
                 };
+
+                if (param.maxExecutionDuration && (param.maxExecutionDuration > 0)) {
+                  // If a maximum execution duration was provided, start a timer
+                  workerTimer = $timeout(function(){
+                    // This implies that the function execution has taken more than the specified
+                    // duration. So what we will do is that terminate the worker and return an
+                    // error. This prevents us from cases where the execution takes a long time
+                    // such as a regex leading to a very long execution time.
+                    // Use the value as provided for the timeout case
+                    workerTimer = null;
+                    handleWorkerCompletion(worker, workerTimer, dfr, param.returnValueToUseUponTimeout);
+                  }, param.maxExecutionDuration, false);
+                }
 
                 worker.postMessage(JSONfn.stringify(param));
                 return dfr.promise;
             };
 
+            // This function is called when the worker completes (success or failure)
+            // For simplicity, we will always resolve the promise
+            function handleWorkerCompletion(worker, workerTimer, dfr, data){
+              dfr.resolve(data);
+
+              // Clear the timer
+              clearTimer(workerTimer);
+              if (worker) {
+                // Terminate the worker
+                worker.terminate();
+              }
+            }
+
+            function clearTimer(workerTimer) {
+              if (workerTimer) {
+                $timeout.cancel(workerTimer);
+              }
+            }
+
           /**
            *   Execute multiple functions, each in a separate threads.
            *
            *    @args  -- array of @param objects (described above);
+           *
+           *    NOTE: We are not using this function and we have not tested
+           *    this function.
            */
             VkThread.prototype.execAll = function(args, cb){
 
@@ -114,7 +152,7 @@
             };
 
          return vkThread;
-      };
+      }];
   };
   angular.module('ng-vkThread', [])
          .provider('vkThread', VkthreadProvider);
