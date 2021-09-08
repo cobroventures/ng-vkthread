@@ -137,11 +137,13 @@
              * @private
              * @function dequeueTask
              *
-             * @description Dequeue the task at the first position
+             * @description Dequeue the task at the first position, if any
              *
-             * @return {Object} contains param, deferred
+             * @return {Object} An object contains param, deferred if there is at least one
+             * entry in the array. Otherwise the value returned is undefined
              */
             function dequeueTask() {
+              // If the array below is empty, this function returns undefined.
               return taskQueue.shift();
             }
 
